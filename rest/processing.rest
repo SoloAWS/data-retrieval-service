@@ -1,0 +1,81 @@
+### Health Check
+GET http://localhost:8000/data-retrieval/health
+
+### Create Retrieval Task
+# @name createTask
+POST http://localhost:8000/api/v1/data-retrieval/tasks
+Content-Type: application/json
+
+{
+  "source_type": "HOSPITAL",
+  "source_name": "Hospital San Juan",
+  "source_id": "HSJ-001",
+  "location": "Bogotá",
+  "retrieval_method": "DIRECT_UPLOAD",
+  "batch_id": "BATCH-2025-01",
+  "priority": 2,
+  "metadata": {
+    "department": "Radiología",
+    "project": "Estudio COVID-2025"
+  }
+}
+
+### Get Task Details
+GET http://localhost:8000/api/v1/data-retrieval/tasks/{{createTask.response.body.task_id}}
+
+### Start Task
+# @name startTask
+POST http://localhost:8000/api/v1/data-retrieval/tasks/{{createTask.response.body.task_id}}/start
+Content-Type: application/json
+
+{}
+
+### Upload Image to Task
+# @name uploadImage
+POST http://localhost:8000/api/v1/data-retrieval/tasks/{{createTask.response.body.task_id}}/images
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="format"
+
+DICOM
+--WebAppBoundary
+Content-Disposition: form-data; name="modality"
+
+XRAY
+--WebAppBoundary
+Content-Disposition: form-data; name="region"
+
+CHEST
+--WebAppBoundary
+Content-Disposition: form-data; name="dimensions"
+
+1024x768
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="image.jpg"
+Content-Type: application/dicom
+
+< ./image.jpg
+--WebAppBoundary--
+
+### Get Images for Task
+GET http://localhost:8000/api/v1/data-retrieval/tasks/{{createTask.response.body.task_id}}/images
+
+### Get All Tasks with Filters
+# Example 1: Get pending tasks
+GET http://localhost:8000/api/v1/data-retrieval/tasks?pending_only=true
+
+### Get Tasks by Source
+GET http://localhost:8000/api/v1/data-retrieval/tasks?source_id=HSJ-001&limit=10
+
+### Get Tasks by Batch
+GET http://localhost:8000/api/v1/data-retrieval/tasks?batch_id=BATCH-2025-01
+
+### Complete Task
+POST http://localhost:8000/api/v1/data-retrieval/tasks/{{createTask.response.body.task_id}}/complete
+Content-Type: application/json
+
+{
+  "successful_images": 10,
+  "failed_images": 0
+}
