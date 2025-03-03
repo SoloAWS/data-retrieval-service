@@ -45,6 +45,7 @@ class PulsarPublisher:
                     service_url=self.service_url,
                     authentication=pulsar.AuthenticationToken(self.token),
                 )
+
                 logger.info("Pulsar client initialized successfully")
             except Exception as e:
                 logger.error(f"Error initializing Pulsar client: {str(e)}")
@@ -64,11 +65,7 @@ class PulsarPublisher:
         """Obtiene o crea un productor para un tópico específico"""
         if topic not in self.producers:
             try:
-                self.producers[topic] = self.client.create_producer(
-                    topic=topic,
-                    send_timeout_millis=10000,
-                    batching_enabled=False,
-                )
+                self.producers[topic] = self.client.create_producer(topic=topic)
                 logger.info(f"Created producer for topic: {topic}")
             except Exception as e:
                 logger.error(f"Error creating producer for topic {topic}: {str(e)}")
