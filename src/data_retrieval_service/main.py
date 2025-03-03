@@ -47,7 +47,8 @@ PULSAR_TOPICS_MAPPING: Dict[str, str] = {
     "RetrievalCompleted": "persistent://public/default/retrieval-completed",
     "RetrievalFailed": "persistent://public/default/retrieval-failed",
     "ImagesRetrieved": "persistent://public/default/images-retrieved",
-    "ImageReadyForAnonymization": "persistent://public/default/image-anonymization"
+    "ImageReadyForAnonymization": "persistent://public/default/image-anonymization",
+    "ImageUploadFailed": "persistent://public/default/image-upload-failed"
 }
 
 

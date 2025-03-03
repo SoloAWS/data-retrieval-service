@@ -111,3 +111,52 @@ class ImageReadyForAnonymization(DomainEvent):
             "region": self.region,
             "file_path": self.file_path
         }
+
+@dataclass
+class ImageReadyForAnonymization(DomainEvent):
+    image_id: uuid.UUID = field(default=None)
+    task_id: uuid.UUID = field(default=None)
+    source: str = field(default=None)
+    modality: str = field(default=None)
+    region: str = field(default=None)
+    file_path: str = field(default=None)
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    def to_dict(self) -> dict:
+        return {
+            **super().to_dict(),
+            "image_id": str(self.image_id),
+            "task_id": str(self.task_id),
+            "source": self.source,
+            "modality": self.modality,
+            "region": self.region,
+            "file_path": self.file_path
+        }
+
+
+@dataclass
+class ImageUploadFailed(DomainEvent):
+    task_id: uuid.UUID = field(default=None)
+    filename: str = field(default=None)
+    error_message: str = field(default=None)
+    source: str = field(default=None)
+    format: str = field(default=None)
+    modality: str = field(default=None)
+    region: str = field(default=None)
+    stack_trace: str = field(default=None)
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    def to_dict(self) -> dict:
+        return {
+            **super().to_dict(),
+            "task_id": str(self.task_id),
+            "filename": self.filename,
+            "error_message": self.error_message,
+            "source": self.source,
+            "format": self.format,
+            "modality": self.modality,
+            "region": self.region,
+            "stack_trace": self.stack_trace
+        }

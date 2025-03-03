@@ -309,8 +309,38 @@ async def api_upload_image(
     except Exception as e:
         logger.error(f"Error al subir imagen: {str(e)}")
         logger.error(traceback.format_exc())
+        
+        # helper
+        from ...modules.data_retrieval.application.events.event import create_image_upload_failed_event
+        
+        try:
+            source_name = None
+            try:
+                async with uow:
+                    retrieval_repository = uow.repository('retrieval')
+                    task = await retrieval_repository.get_by_id(uuid.UUID(task_id))
+                    if task:
+                        source_name = task.source_metadata.source_name
+            except Exception:
+                pass
+            
+            # Create and publish error event
+            error_event = await create_image_upload_failed_event(
+                task_id=uuid.UUID(task_id),
+                filename=file.filename,
+                error=e,
+                source=source_name,
+                format_str=format.value,
+                modality=modality,
+                region=region
+            )
+            
+            await publisher.publish_event(error_event)
+            logger.info(f"Published ImageUploadFailed event for task {task_id}")
+        except Exception as event_error:
+            logger.error(f"Error publishing upload failed event: {str(event_error)}")
+        
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/tasks", response_model=List[Dict[str, Any]])
 async def api_get_tasks(
