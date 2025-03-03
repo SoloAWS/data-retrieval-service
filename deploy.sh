@@ -1,7 +1,7 @@
 #!/bin/bash
 # Configure environment variables
 export PROJECT_ID="sologcp"
-export APP_NAME="processing-app"
+export APP_NAME="data-retrieval-app"
 export PORT=8080
 export REGION="us-central1"
 export IMAGE_TAG="gcr.io/$PROJECT_ID/$APP_NAME"
