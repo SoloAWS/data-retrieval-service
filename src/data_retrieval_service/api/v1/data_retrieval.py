@@ -303,7 +303,30 @@ async def api_upload_image(
                 
         return result
     except ValueError as e:
+        # helper
+        from ...modules.data_retrieval.application.events.event import create_image_upload_failed_event
         if "No se encontró la tarea" in str(e):
+            source_name = None
+            try:
+                async with uow:
+                    retrieval_repository = uow.repository('retrieval')
+                    task = await retrieval_repository.get_by_id(uuid.UUID(task_id))
+                    if task:
+                        source_name = task.source_metadata.source_name
+            except Exception:
+                pass
+            
+            error_event = await create_image_upload_failed_event(
+                task_id=uuid.UUID(task_id),
+                filename=file.filename,
+                error=e,
+                source=source_name,
+                format_str=format.value,
+                modality=modality,
+                region=region
+            )
+            
+            await publisher.publish_event(error_event)
             raise HTTPException(status_code=404, detail=str(e))
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

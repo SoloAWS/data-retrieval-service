@@ -58,6 +58,34 @@ Content-Type: application/dicom
 < ./image.jpg
 --WebAppBoundary--
 
+### Upload Image to a non existent task
+# @name uploadImageError
+POST http://localhost:8000/api/v1/data-retrieval/tasks/00000000-0000-0000-0000-000000000000/images
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="format"
+
+DICOM
+--WebAppBoundary
+Content-Disposition: form-data; name="modality"
+
+XRAY
+--WebAppBoundary
+Content-Disposition: form-data; name="region"
+
+CHEST
+--WebAppBoundary
+Content-Disposition: form-data; name="dimensions"
+
+1024x768
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="image.jpg"
+Content-Type: application/dicom
+
+< ./image.jpg
+--WebAppBoundary--
+
 ### Get Images for Task
 GET http://localhost:8000/api/v1/data-retrieval/tasks/{{createTask.response.body.task_id}}/images
 
