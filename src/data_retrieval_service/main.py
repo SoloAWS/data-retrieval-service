@@ -71,7 +71,8 @@ async def startup_event():
     try:
         publisher = PulsarPublisher(
             service_url=settings.pulsar_service_url,
-            topics_mapping=PULSAR_TOPICS_MAPPING
+            topics_mapping=PULSAR_TOPICS_MAPPING,
+            token=settings.pulsar_token,
         )
         
         # Configurar dependencias

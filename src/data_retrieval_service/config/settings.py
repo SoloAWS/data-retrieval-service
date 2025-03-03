@@ -6,26 +6,30 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     """Configuración global de la aplicación"""
-    
+
     # Configuración general
     environment: str = Field(default="dev")
     log_level: str = Field(default="INFO")
-    
+
     # Configuración de la base de datos
     db_host: str = Field(default="postgres")
     db_port: int = Field(default=5432)
     db_user: str = Field(default="user")
     db_password: str = Field(default="password")
-    db_name: str = Field(default="data_retrieval_db")
-    
+    db_name: str = Field(default="anonymization_db")
+
     @property
     def db_url(self) -> str:
         """URL de conexión a la base de datos"""
-        return os.getenv("DATABASE_URL", f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}")
-    
+        return os.getenv(
+            "DATABASE_URL",
+            f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}",
+        )
+
     # Configuración de Pulsar
-    pulsar_service_url: str = Field(default="pulsar://pulsar:6650")
-    
+    pulsar_service_url: str = Field(default="")
+    pulsar_token: str = Field(default="")
+
     # Configuración del API
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8000)
