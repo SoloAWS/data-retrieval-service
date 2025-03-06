@@ -97,7 +97,7 @@ GET http://localhost:8000/api/v1/data-retrieval/tasks?pending_only=true
 GET http://localhost:8000/api/v1/data-retrieval/tasks?source_id=HSJ-001&limit=10
 
 ### Get Tasks by Batch
-GET http://localhost:8000/api/v1/data-retrieval/tasks?batch_id=BATCH-2025-01
+GET http://localhost:8000/api/v1/data-retrieval/tasks?batch_id=BATCH-2025-04
 
 ### Complete Task
 POST http://localhost:8000/api/v1/data-retrieval/tasks/{{createTask.response.body.task_id}}/complete

@@ -27,8 +27,26 @@ class Settings(BaseSettings):
         )
 
     # Configuración de Pulsar
-    pulsar_service_url: str = Field(default="")
+    pulsar_service_url: str = Field(default="pulsar://pulsar-broker:6650")
     pulsar_token: str = Field(default="")
+    
+    # Nuevo: Configuración del consumidor de Pulsar
+    pulsar_subscription_name: str = Field(default="data-retrieval-service")
+    pulsar_consumer_topics: list = Field(default=["persistent://public/default/data-retrieval-commands"])
+    pulsar_consumer_max_workers: int = Field(default=5)
+    pulsar_consumer_batch_size: int = Field(default=10)
+    pulsar_consumer_flow_control_size: int = Field(default=100)
+    pulsar_consumer_receive_queue_size: int = Field(default=1000)
+    
+    # Mapeo de eventos a tópicos de Pulsar
+    pulsar_event_topics_mapping: dict = Field(default={
+        "RetrievalStarted": "persistent://public/default/retrieval-started",
+        "RetrievalCompleted": "persistent://public/default/retrieval-completed",
+        "RetrievalFailed": "persistent://public/default/retrieval-failed",
+        "ImagesRetrieved": "persistent://public/default/images-retrieved",
+        "ImageReadyForAnonymization": "persistent://public/default/image-anonymization",
+        "ImageUploadFailed": "persistent://public/default/image-upload-failed"
+    })
 
     # Configuración del API
     api_host: str = Field(default="0.0.0.0")

@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import time
 from typing import Dict
 import os
 from fastapi import FastAPI
@@ -7,7 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config.settings import get_settings
 from .config.database import init_db
-from .config.dependencies import setup_dependencies
+from .config.dependencies import (
+    setup_messaging, 
+    create_consumer, 
+    set_consumer,
+    get_consumer,
+    get_publisher
+)
 from .modules.data_retrieval.infrastructure.messaging.pulsar_publisher import PulsarPublisher
 from .api import api_router
 
@@ -40,17 +47,24 @@ app.add_middleware(
 # Configurar rutas de API
 app.include_router(api_router, prefix="/api")
 
+# Ruta por defecto
+@app.get("/")
+async def root():
+    return {"message": "Data Retrieval Service API"}
 
-# Mapeo de eventos a temas de Pulsar
-PULSAR_TOPICS_MAPPING: Dict[str, str] = {
-    "RetrievalStarted": "persistent://public/default/retrieval-started",
-    "RetrievalCompleted": "persistent://public/default/retrieval-completed",
-    "RetrievalFailed": "persistent://public/default/retrieval-failed",
-    "ImagesRetrieved": "persistent://public/default/images-retrieved",
-    "ImageReadyForAnonymization": "persistent://public/default/image-anonymization",
-    "ImageUploadFailed": "persistent://public/default/image-upload-failed"
-}
-
+# Endpoint de health check
+@app.get("/data-retrieval/health", tags=["health"])
+async def health_check():
+    """Endpoint para verificar el estado del servicio"""
+    consumer = get_consumer()
+    consumer_status = "running" if consumer and consumer._is_running else "stopped"
+    
+    return {
+        "status": "ok",
+        "service": "data-retrieval-service",
+        "version": "1.0.0",
+        "consumer_status": consumer_status
+    }
 
 # Inicialización de la aplicación
 @app.on_event("startup")
@@ -72,38 +86,42 @@ async def startup_event():
     try:
         publisher = PulsarPublisher(
             service_url=settings.pulsar_service_url,
-            topics_mapping=PULSAR_TOPICS_MAPPING,
+            topics_mapping=settings.pulsar_event_topics_mapping,
             token=settings.pulsar_token,
         )
         
         # Configurar dependencias
-        setup_dependencies(publisher)
+        setup_messaging(publisher)
         logger.info("Publicador de Pulsar inicializado correctamente")
+        
+        # Inicializar el consumidor de Pulsar
+        if settings.pulsar_service_url and settings.pulsar_consumer_topics:
+            consumer = create_consumer(settings)
+            set_consumer(consumer)
+            
+            # Iniciar el consumidor asíncronamente
+            await consumer.start()
+            logger.info("Consumidor de Pulsar iniciado correctamente")
+        else:
+            logger.warning("Pulsar consumer configuration missing, command processing disabled")
     except Exception as e:
-        logger.error(f"Error al inicializar el publicador de Pulsar: {str(e)}")
-        logger.warning("Continuando sin publicador de Pulsar configurado")
+        logger.error(f"Error al inicializar la mensajería: {str(e)}")
+        logger.warning("Continuando sin mensajería configurada")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Cerrando servicio de recuperación de datos")
-    # Aquí se podrían agregar tareas de limpieza si son necesarias
     
-    
-# Ruta por defecto
-@app.get("/")
-async def root():
-    return {"message": "Data Retrieval Service API"}
+    # Detener el consumidor de Pulsar
+    consumer = get_consumer()
+    if consumer:
+        try:
+            await consumer.stop()
+            logger.info("Consumidor de Pulsar detenido correctamente")
+        except Exception as e:
+            logger.error(f"Error al detener el consumidor de Pulsar: {str(e)}")
 
-# Endpoint de health check
-@app.get("/data-retrieval/health", tags=["health"])
-async def health_check():
-    """Endpoint para verificar el estado del servicio"""
-    return {
-        "status": "ok",
-        "service": "data-retrieval-service",
-        "version": "1.0.0"
-    }
 
 # Configuración para ejecutar directamente
 if __name__ == "__main__":

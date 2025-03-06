@@ -1,223 +1,129 @@
-# Data Retrieval Service
+# Arquitectura de Procesamiento de Comandos
 
-Microservicio para la recuperación y carga de imágenes médicas en SaludTech de los Alpes.
+## Visión General
 
-## Descripción
+El Servicio de Recuperación de Datos ahora admite una arquitectura híbrida:
 
-Este microservicio forma parte del sistema SaludTech, encargado de procesar y distribuir imágenes médicas para entrenamiento de modelos de IA. El servicio "data-retrieval-service" específicamente se encarga de la adquisición y almacenamiento inicial de las imágenes médicas, preparándolas para su posterior anonimización.
+1. **Procesamiento de Comandos vía Pulsar**: Comandos como crear tareas o iniciar tareas se reciben a través de un tópico de Pulsar.
+2. **Procesamiento de Consultas vía HTTP**: Consultas como obtener detalles de tareas o recuperar imágenes se manejan a través de endpoints HTTP directos.
+3. **Carga de Archivos vía HTTP**: Debido a las limitaciones de datos binarios, las cargas de imágenes todavía se procesan a través de HTTP.
 
-## Arquitectura
+## Flujo de Comandos
 
-El servicio está desarrollado siguiendo la arquitectura hexagonal (también conocida como Ports and Adapters) con principios de Domain-Driven Design (DDD):
+1. El servicio BFF envía comandos al tópico `persistent://public/default/data-retrieval-commands`.
+2. El consumidor Pulsar del Servicio de Recuperación de Datos escucha este tópico.
+3. Cuando se recibe un comando, se enruta al manejador apropiado según su tipo.
+4. El manejador procesa el comando utilizando la lógica de negocio existente.
+5. Los eventos del procesamiento de comandos se publican en sus respectivos tópicos.
 
-- **Dominio**: Contiene la lógica de negocio pura, con entidades, objetos de valor y reglas de negocio
-- **Aplicación**: Orquesta los casos de uso usando el dominio
-- **Infraestructura**: Implementa los detalles técnicos (base de datos, mensajería, etc.)
-- **API**: Expone la funcionalidad a través de endpoints REST versionados
+## Tipos de Comandos
 
-### Patrón Unit of Work
+Se admiten los siguientes comandos:
 
-El servicio implementa el patrón Unit of Work (UoW) para gestionar transacciones y garantizar la integridad de los datos:
+1. **CreateRetrievalTask**: Crea una nueva tarea de recuperación de datos.
+2. **StartRetrievalTask**: Inicia una tarea de recuperación de datos existente.
+3. **UploadImage**: (No recomendado para Pulsar debido a datos binarios) Utilizado principalmente para pruebas.
 
-- Proporciona límites de transacción claros
-- Gestiona la coherencia entre múltiples operaciones de repositorio
-- Simplifica el manejo de errores mediante rollback automático
-- Permite una mejor separación de responsabilidades
+## Componentes
 
-### Presentación Versionada
+### Consumidor Pulsar (PulsarConsumer)
 
-La capa de presentación está estructurada siguiendo un enfoque de versionado API:
+- Ubicado en `src/data_retrieval_service/modules/data_retrieval/infrastructure/messaging/pulsar_consumer.py`
+- Se suscribe a los tópicos de comandos
+- Enruta los comandos a los manejadores apropiados
+- Gestiona los acknowledgments y la lógica de reintentos
 
-- Los endpoints se organizan bajo `/api/v{número_versión}/`
-- La versión inicial es `/api/v1/`
-- Esta estructura permite evolucionar la API sin romper clientes existentes
+### Manejadores de Comandos
 
-## Funcionalidades principales
-
-El servicio proporciona las siguientes funcionalidades:
-
-- Creación y gestión de tareas de recuperación de imágenes médicas
-- Almacenamiento de imágenes médicas en el sistema de archivos
-- Notificación al servicio de anonimización cuando una imagen está lista para ser procesada
-- Seguimiento del estado de las tareas de recuperación
-
-## Comunicación con otros servicios
-
-El servicio se comunica con otros componentes del ecosistema a través de mensajería asíncrona:
-
-- Envía eventos `ImageReadyForAnonymization` al servicio de anonimización para que procese las imágenes recuperadas
-- Expone una API REST para que otros servicios puedan crear tareas de recuperación y consultar su estado
-
-## Tecnologías utilizadas
-
-- **Python 3.9+**: Lenguaje de programación principal
-- **FastAPI**: Framework para el desarrollo de APIs REST
-- **SQLAlchemy**: ORM para interacción con la base de datos
-- **Apache Pulsar**: Sistema de mensajería para comunicación entre servicios
-- **PostgreSQL**: Base de datos relacional para almacenar metadatos
-
-## Estructura del proyecto
-
-```
-data_retrieval_service/
-├── api/                          # Capa de presentación versionada
-│   ├── __init__.py               # Router principal
-│   └── v1/                       # API versión 1
-│       ├── __init__.py
-│       └── data_retrieval.py     # Endpoints del servicio
-├── config/                       # Configuración global
-│   ├── database.py               # Configuración de base de datos
-│   ├── dependencies.py           # Proveedores de dependencias
-│   └── settings.py               # Configuración general
-├── modules/
-│   └── data_retrieval/           # Módulo principal
-│       ├── application/          # Capa de aplicación
-│       │   ├── commands/         # Comandos (casos de uso de escritura)
-│       │   │   ├── commands.py   # Implementación tradicional
-│       │   │   └── uow_commands.py # Implementación con UoW
-│       │   ├── events/           # Manejadores de eventos
-│       │   └── queries/          # Consultas (casos de uso de lectura)
-│       │       ├── queries.py    # Implementación tradicional
-│       │       └── uow_queries.py # Implementación con UoW
-│       ├── domain/               # Capa de dominio
-│       │   ├── entities.py       # Entidades del dominio
-│       │   ├── events.py         # Eventos del dominio
-│       │   ├── repositories.py   # Interfaces de repositorios
-│       │   └── value_objects.py  # Objetos de valor
-│       └── infrastructure/       # Capa de infraestructura
-│           ├── messaging/        # Implementación de mensajería
-│           └── persistence/      # Implementación de persistencia
-├── seedwork/                     # Clases base compartidas
-│   ├── application/              # Patrones de aplicación
-│   ├── domain/                   # Patrones de dominio
-│   │   ├── repositories.py       # Repositorio base
-│   │   └── ...
-│   └── infrastructure/           # Patrones de infraestructura
-│       ├── uow.py                # Implementación de Unit of Work
-│       └── ...
-└── main.py                       # Punto de entrada de la aplicación
-```
+- Ubicados en `src/data_retrieval_service/modules/data_retrieval/application/commands/command_handlers.py`
+- Mapean los comandos a la lógica de negocio existente
+- Validan los datos del comando
+- Devuelven resultados al llamador
 
 ## Configuración
 
-La configuración se realiza a través de variables de entorno o un archivo `.env` con las siguientes variables:
-
-```
-# Entorno
-ENVIRONMENT=dev
-LOG_LEVEL=INFO
-
-# Base de datos
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=user
-DB_PASSWORD=password
-DB_NAME=data_retrieval_db
-
-# API
-API_HOST=0.0.0.0
-API_PORT=8000
-API_RELOAD=true
-
-# Pulsar
-PULSAR_SERVICE_URL=pulsar://localhost:6650
-
-# Almacenamiento
-IMAGE_STORAGE_PATH=/tmp/data_retrieval_images
-```
-
-## Instalación y ejecución
-
-### Requisitos previos
-
-- Python 3.9+
-- PostgreSQL
-- Apache Pulsar
-
-### Instalación
-
-1. Clonar el repositorio
-2. Crear un entorno virtual: `python -m venv venv`
-3. Activar el entorno virtual:
-   - Windows: `venv\Scripts\activate`
-   - Unix/MacOS: `source venv/bin/activate`
-4. Instalar dependencias: `pip install -r requirements.txt`
-5. Configurar variables de entorno o crear archivo `.env`
-
-### Ejecución
-
-```bash
-# Ejecutar la aplicación
-python -m data_retrieval_service.main
-
-# Alternativamente con uvicorn directamente
-uvicorn data_retrieval_service.main:app --reload
-```
-
-## API REST
-
-La API REST del servicio ofrece los siguientes endpoints principales:
-
-- `POST /api/v1/data-retrieval/tasks`: Crea una nueva tarea de recuperación
-- `GET /api/v1/data-retrieval/tasks/{task_id}`: Obtiene información de una tarea específica
-- `POST /api/v1/data-retrieval/tasks/{task_id}/start`: Inicia una tarea de recuperación
-- `POST /api/v1/data-retrieval/tasks/{task_id}/images`: Carga una imagen para una tarea
-- `GET /api/v1/data-retrieval/tasks/{task_id}/images`: Obtiene las imágenes de una tarea
-- `GET /api/v1/data-retrieval/tasks`: Obtiene tareas con filtros (fuente, lote, pendientes)
-
-La documentación completa de la API está disponible en:
-- Swagger UI: `/docs`
-- ReDoc: `/redoc`
-
-## Flujo de trabajo
-
-1. Se crea una tarea de recuperación (`POST /api/v1/data-retrieval/tasks`)
-2. Se inicia la tarea (`POST /api/v1/data-retrieval/tasks/{id}/start`)
-3. Se cargan las imágenes para la tarea (`POST /api/v1/data-retrieval/tasks/{id}/images`)
-4. Por cada imagen cargada, se genera un evento `ImageReadyForAnonymization`
-5. El servicio de anonimización recibe estos eventos y procesa las imágenes
-6. Al finalizar, se marca la tarea como completada (`POST /api/v1/data-retrieval/tasks/{id}/complete`)
-
-## Implementación del Patrón Unit of Work
-
-### Beneficios de Unit of Work
-
-- **Integridad Transaccional**: Todas las operaciones dentro de un caso de uso se ejecutan en una única transacción
-- **Gestión de Dependencias Más Limpia**: Los servicios dependen del UoW, no de repositorios individuales
-- **Manejo de Errores Simplificado**: Rollback automático en caso de excepciones
-- **Gestión Consistente de Sesiones**: Una sesión por request
-
-### Uso del Patrón
+El consumidor Pulsar se configura en `src/data_retrieval_service/config/settings.py`:
 
 ```python
-async def handle_command(command, uow):
-    async with uow:
-        # Obtener repositorios
-        repository_a = uow.repository('repo_a')
-        repository_b = uow.repository('repo_b')
-        
-        # Realizar operaciones
-        entity = await repository_a.get_by_id(command.id)
-        entity.do_something()
-        await repository_a.update(entity)
-        
-        # Los cambios se confirman (commit) automáticamente al salir
-        # del contexto si no hay excepciones, o se hace rollback si las hay
+# Configuración del consumidor Pulsar
+pulsar_subscription_name: str = "data-retrieval-service"
+pulsar_consumer_topics: list = ["persistent://public/default/data-retrieval-commands"]
+pulsar_consumer_max_workers: int = 5
+pulsar_consumer_batch_size: int = 10
+# Configuración adicional...
 ```
 
-## Integración con servicio de anonimización
+## Consideraciones de Despliegue
 
-En su lugar, cuando se carga una imagen, se emite un evento `ImageReadyForAnonymization` con la siguiente información:
+1. **Escalabilidad**: El consumidor puede escalarse horizontalmente ejecutando múltiples instancias del servicio.
+2. **Tolerancia a Fallos**: Los comandos fallidos se reintentan utilizando el mecanismo de reconocimiento negativo incorporado en Pulsar.
+3. **Monitoreo**: El endpoint de salud incluye el estado del consumidor para su monitoreo.
 
-```json
-{
-  "image_id": "uuid-de-la-imagen",
-  "task_id": "uuid-de-la-tarea",
-  "source": "nombre-de-la-fuente",
-  "modality": "tipo-de-modalidad",
-  "region": "region-anatomica",
-  "file_path": "ruta-al-archivo-en-disco"
-}
+## Manejo de Errores
+
+1. **Validación de Comandos**: Los comandos se validan antes de procesarse.
+2. **Registro de Errores**: Se producen registros de errores detallados para la solución de problemas.
+3. **Recuperación de Errores**: El consumidor incluye recuperación de errores para mantener la estabilidad del servicio.
+
+## Diagrama de Flujo
+
+```
++-------+    Comando     +-------------------+    Procesamiento    +---------------+
+|  BFF  | ------------> | Tópico de Pulsar  | -----------------> | Data Retrieval |
++-------+               +-------------------+                     +---------------+
+                                                                          |
+                                                                          |
++-------+    Consulta     +---------------+                               |
+|  BFF  | -------------> | Data Retrieval |                               |
++-------+                +---------------+                                |
+                                                                          |
+                                                                          V
+                                                       +-----------------------------------+
+                                                       | Base de Datos + Sistema de Archivos |
+                                                       +-----------------------------------+
 ```
 
-El servicio de anonimización debe escuchar estos eventos en el tópico `anonymization-requests` y procesar las imágenes indicadas.
+## Beneficios del Enfoque
+
+1. **Desacoplamiento**: BFF y Data Retrieval están desacoplados a través de Pulsar, permitiendo mayor flexibilidad.
+2. **Resiliencia**: Los mensajes se almacenan en Pulsar hasta que se procesen correctamente.
+3. **Escalabilidad**: Múltiples instancias pueden procesar comandos en paralelo.
+4. **Trazabilidad**: Cada comando tiene un ID único y puede ser rastreado a través del sistema.
+
+## Configuración de Pulsar
+
+Para configurar Pulsar correctamente:
+
+1. Asegúrese de que Pulsar esté ejecutándose y sea accesible desde el servicio.
+2. Defina las variables de entorno apropiadas:
+   - `PULSAR_SERVICE_URL`
+   - `PULSAR_TOKEN` (si se requiere autenticación)
+   - `PULSAR_SUBSCRIPTION_NAME`
+
+## Pruebas
+
+Para probar el procesamiento de comandos:
+
+1. Envíe un comando al tópico de Pulsar utilizando el BFF.
+2. Verifique los registros para la recepción y procesamiento del comando.
+3. Consulte el estado de la tarea utilizando los endpoints HTTP para confirmar el procesamiento exitoso.
+
+## Solución de Problemas
+
+Si los comandos no se procesan:
+
+1. Verifique que el servicio tenga conectividad con Pulsar.
+2. Revise los registros del servicio para mensajes de error.
+3. Confirme que el tópico correcto está configurado tanto en el BFF como en el servicio de Data Retrieval.
+4. Verifique que el formato del comando sea correcto.
+
+## Ampliaciones Futuras
+
+1. **Monitoreo Avanzado**: Integración con sistemas de monitoreo para seguimiento detallado.
+2. **Manejo de Errores Mejorado**: Implementación de DLQ (Dead Letter Queue) para comandos fallidos.
+3. **Más Tipos de Comandos**: Adición de comandos adicionales a medida que evoluciona el sistema.
+4. **Procesamiento en Lotes**: Optimización del rendimiento mediante procesamiento en lotes.
+
+## Conclusión
+
+Esta arquitectura híbrida de CQRS (Command Query Responsibility Segregation) proporciona un equilibrio entre robustez para los comandos y simplicidad para las consultas, al tiempo que mantiene la compatibilidad con el manejo existente de archivos binarios.
