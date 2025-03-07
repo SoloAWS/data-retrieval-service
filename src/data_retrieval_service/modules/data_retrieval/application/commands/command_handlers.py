@@ -3,6 +3,7 @@ import os
 import uuid
 from typing import Dict, Any, Optional
 
+from .compensation_commands import DeleteRetrievedImageCommand
 from .....seedwork.infrastructure.uow import UnitOfWork
 from ...domain.value_objects import SourceType, RetrievalMethod, ImageFormat
 from ...infrastructure.messaging.pulsar_publisher import PulsarPublisher
@@ -226,9 +227,72 @@ async def handle_upload_image(
         logger.error(f"Error handling UploadImage command: {str(e)}")
         raise
 
-# Mapa de comandos a manejadores
 command_handlers = {
     "CreateRetrievalTask": handle_create_retrieval_task,
     "StartRetrievalTask": handle_start_retrieval_task,
     "UploadImage": handle_upload_image,
 }
+
+async def handle_delete_retrieved_image(
+    command_data: Dict[str, Any],
+    uow: UnitOfWork,
+    publisher: PulsarPublisher,
+    correlation_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Manejador para el comando DeleteRetrievedImage recibido via Pulsar.
+    
+    Args:
+        command_data: Datos del comando
+        uow: Unidad de trabajo para transacciones
+        publisher: Publicador de eventos
+        correlation_id: ID de correlación opcional
+        
+    Returns:
+        Dict: Resultado de la operación
+    """
+    logger.info(f"Processing DeleteRetrievedImage command: {command_data}")
+    
+    try:
+        # Importar el handler (importación tardía para evitar referencias circulares)
+        from .compensation_commands import DeleteRetrievedImageHandler, delete_retrieved_image
+        
+        # Extraer datos del comando
+        image_id_str = command_data.get('image_id')
+        task_id_str = command_data.get('task_id')
+        reason = command_data.get('reason', "Compensación de saga")
+        
+        # Validar datos requeridos
+        if not image_id_str or not task_id_str:
+            raise ValueError("Missing required command data fields: image_id, task_id")
+        
+        # Convertir IDs a UUID
+        try:
+            image_id = uuid.UUID(image_id_str)
+            task_id = uuid.UUID(task_id_str)
+        except ValueError:
+            raise ValueError(f"Invalid ID format: image_id={image_id_str}, task_id={task_id_str}")
+        
+        # Crear handler
+        handler = DeleteRetrievedImageHandler(uow, publisher)
+        
+        # Ejecutar comando
+        result = await delete_retrieved_image(
+            handler=handler,
+            image_id=image_id,
+            task_id=task_id,
+            reason=reason
+        )
+        
+        # Añadir correlation_id a la respuesta
+        if correlation_id:
+            result["correlation_id"] = correlation_id
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error handling DeleteRetrievedImage command: {str(e)}")
+        raise
+
+command_handlers.update({
+    "DeleteRetrievedImage": handle_delete_retrieved_image,
+})

@@ -160,3 +160,37 @@ class ImageUploadFailed(DomainEvent):
             "region": self.region,
             "stack_trace": self.stack_trace
         }
+        
+@dataclass
+class ImageDeletionCompleted(DomainEvent):
+    image_id: uuid.UUID = field(default=None)
+    task_id: uuid.UUID = field(default=None)
+    reason: str = field(default=None)
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    def to_dict(self) -> dict:
+        return {
+            **super().to_dict(),
+            "image_id": str(self.image_id),
+            "task_id": str(self.task_id),
+            "reason": self.reason
+        }
+
+@dataclass
+class ImageDeletionFailed(DomainEvent):
+    image_id: uuid.UUID = field(default=None)
+    task_id: uuid.UUID = field(default=None)
+    error_message: str = field(default=None)
+    reason: str = field(default=None)
+    id: uuid.UUID = field(default_factory=uuid.uuid4)
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    def to_dict(self) -> dict:
+        return {
+            **super().to_dict(),
+            "image_id": str(self.image_id),
+            "task_id": str(self.task_id),
+            "error_message": self.error_message,
+            "reason": self.reason
+        }
